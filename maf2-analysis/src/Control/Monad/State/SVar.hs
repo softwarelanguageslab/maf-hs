@@ -46,7 +46,7 @@ data SomeVal where
 unsafeCoerceVal :: SomeVal -> a
 unsafeCoerceVal (SomeVal a) = unsafeCoerce a
 
-newtype SVar a = SVar { getSVar :: Int } deriving (Eq, Ord, Show)
+newtype SVar a = SVar { getSVar :: Set Int } deriving (Eq, Ord, Show)
 
 -- NOTE: SVars are actually NOT joinable, 
 -- but they must be able to be used in MonadJoin.
@@ -92,7 +92,7 @@ instance (Monad (t m), MonadLayer t, MonadStateVar m) => MonadStateVar (t m) whe
 -- | The state of the StateVarT monad.
 -- It keeps track of the values of the SVar using a map
 -- , mapping integers to dynamically typed values.
-newtype VarState = VarState {state :: Map Int SomeVal}
+newtype VarState = VarState {state :: Map (Set Int) SomeVal}
 
 -- |  Create an empty VarState
 emptyVarState :: VarState
@@ -107,8 +107,8 @@ runStateVarT (StateVarT ma) = ST.runStateT ma (VarState Map.empty)
 instance {-# OVERLAPPING #-} (MonadIntegerPool m) => MonadStateVar (StateVarT m) where
   new vlu = do
     i <- lift fresh
-    ST.modify (VarState . Map.insert i (SomeVal vlu) . state)
-    return (SVar i)
+    ST.modify (VarState . Map.insert (Set.singleton i) (SomeVal vlu) . state)
+    return (SVar $ Set.singleton i)
   modify f (SVar i) = do
     -- SAFETY: unsafeCoerseVal is safe since each integer
     -- is only mapped once to an SVar of a specific type.
@@ -156,7 +156,7 @@ instance {-# OVERLAPPABLE #-} (MonadStateVarTracking m, MonadLayer t) => MonadSt
    getDeps  = upperM getDeps
 
 -- |  A dependency on an SVar
-newtype Dep = Dep Int deriving (Ord, Eq, Show)
+newtype Dep = Dep (Set Int) deriving (Ord, Eq, Show)
 
 -- for convience
 
