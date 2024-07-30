@@ -27,8 +27,8 @@ library
       Domain.Class
       Domain.Core
       Domain.Core.HMapDomain
-      Domain.Core.DictionaryDomain
       Domain.Core.SeqDomain
+      Domain.Core.DictionaryDomain
       Domain.Scheme
       Domain.Scheme.Class
       Domain.Scheme.Derived
@@ -43,6 +43,7 @@ library
       Domain.Scheme.Actors
       Domain.Scheme.Actors.CP
       Domain.Scheme.Actors.Contract
+      Domain.Scheme.Actors.Message
       Domain.Erlang.Class
       Lattice
       Lattice.Class

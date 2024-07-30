@@ -1,16 +1,14 @@
 {-# LANGUAGE FunctionalDependencies, FlexibleInstances #-}
 -- | Mailbox abstractions for the analysis of actors programs
 -- See: Stiévenart, Quentin, et al. "Mailbox abstractions for static analysis of actor programs." 31st European Conference on Object-Oriented Programming (ECOOP 2017). 2017.
-module Analysis.Actors.Mailbox(Mailbox(..), Message(..), SimpleMessage(..)) where
-
-import Lattice
+module Analysis.Actors.Mailbox(Mailbox(..)) where
 
 import Data.Set (Set)
 import qualified Data.Set as Set
 
 -- | This typeclass specifies which operations the mailbox should understand
 -- A mailbox contains a particular type of messages, given by the `msg` type parameter.
-class (Lattice m) => Mailbox m msg | m -> msg where
+class (Ord m, Eq m) => Mailbox m msg | m -> msg where
    -- | Enqueue a message into the mailbox 
    enqueue :: msg -> m -> m
 
@@ -29,19 +27,3 @@ instance (Ord msg) => Mailbox (Set msg) msg where
    enqueue = Set.insert
    dequeue m = Set.map (, m) m
    empty = Set.empty
-
-class Message m v | m -> v where
-   -- | Determines whether the message has a tag that could be considered equal to the given tag 
-   matchesTag :: m -> String -> Bool
-   -- | Extracts the message payload from the message 
-   payload :: m -> [v]
-   -- | Create a new message 
-   message :: String -> [v] -> m
-
--- | Simple message 
-data SimpleMessage v = SimpleMessage String [v] deriving (Eq, Show, Ord)
-
-instance Message (SimpleMessage v) v where 
-   matchesTag (SimpleMessage tag _) t = tag == t
-   payload (SimpleMessage _ v) = v
-   message = SimpleMessage

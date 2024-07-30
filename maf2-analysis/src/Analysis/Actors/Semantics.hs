@@ -16,6 +16,10 @@ import qualified Analysis.Monad as Monad
 import Control.Monad.Join
 import Lattice.Class (Lattice, bottom)
 
+
+sendMessage :: (MessageDomain msg, Functor m, ActorGlobalM m (ARef v) msg mb) => String -> [v] -> ARef v -> m ()
+sendMessage tag vs = void . flip send (message tag vs)
+
 eval :: ActorEvalM m v msg mb => Exp -> m v
 eval (Spw beh args _) = initBehavior beh args spawn
 eval (Bec beh args _) = initBehavior beh args become $> unsp
