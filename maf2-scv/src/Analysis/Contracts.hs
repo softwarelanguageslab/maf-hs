@@ -20,7 +20,6 @@ import qualified Data.Set as Set
 import Analysis.Contracts.Monad
 import Control.Monad.Join
 import Analysis.Actors ()
-import Analysis.Actors.Mailbox (SimpleMessage)
 import Analysis.Actors.Monad
 import Analysis.Scheme.Prelude hiding (spawn, Env)
 
@@ -62,7 +61,7 @@ type instance StrDom V = SchemeString (CP String) V
 -- Actors
 ------------------------------------------------------------
 
-type Msg = SimpleMessage V
+type Msg = ()
 type MB  = Set Msg
 
 ------------------------------------------------------------

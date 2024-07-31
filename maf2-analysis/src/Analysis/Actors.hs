@@ -41,7 +41,7 @@ import Domain (Address)
 type MB = Set Msg
 
 -- | Type of messages
-type Msg = SimpleMessage V
+type Msg = ()
 
 ------------------------------------------------------------
 -- Shorthands
@@ -89,39 +89,39 @@ type State = (SSto Ctx V, Map (Component Ctx) (SVar.SVar V), Map Pid (SVar.SVar 
 ------------------------------------------------------------
 
 analyze :: Exp -> (DSto Ctx V, Map (Component Ctx) V)
-analyze e = let ((sto, retSto, _), state) = (EF.setup initialState >>= EF.iterate intra)
-                    & EF.runEffectT @[_] (Main e)
-                    & runIdentity
-            in (unifyStore sto state, SVar.unify retSto state)
-  where runIntra :: (EF.EffectSVarM m (Component Ctx), SVar.MonadStateVar m) => Component Ctx -> Pid -> Exp -> Env Ctx -> State -> m State
-        runIntra cmp pid exp' env (sto, retSto, mailboxes) = do
-             (m, mailboxes') <- mailbox pid mailboxes
-             r <-   (Analysis.Monad.eval exp' >>= writeAdr cmp)
-                    & runEvalT
-                    & runMayEscape @(Set DomainError)
-                    & runCallT @V @Ctx
-                    & runSpawnT
-                    & runEnv env
-                    & runAlloc @CExp @_ @Ctx (const . const ())
-                    & runAlloc @_ @Ctx PaiAdr
-                    & runAlloc @_ @Ctx VecAdr
-                    & runAlloc @_ @Ctx StrAdr
-                    & runAlloc @_ @Ctx EnvAdr
-                    & runActorT m pid
-                    & runCtx ()
-                    & runJoinT
-                    & runSchemeStoreT sto
-                    & runStoreT' retSto
-                    & runActorSystemT mailboxes'
-             let (((_, sto'), retSto'), mailboxes'') = r
-             return (sto', retSto', mailboxes'')
-        mailbox pid mailboxes = do
-            var <- maybe (SVar.depend Set.empty) pure (Map.lookup pid mailboxes)
-            mb  <- SVar.read var
-            return (mb, Map.insert pid var mailboxes)
-        intra cmp@(Main expr) = runIntra cmp CP.EntryPid expr analysisEnv
-        intra cmp@(Actor pid expr ctx env) = runIntra cmp pid expr env
-        initialState = do
-            values <- foldM (\m (adr, v) -> SVar.new v <&> flip (Map.insert adr) m) Map.empty (Map.toList (initialSto @V analysisEnv))
-            return (fromValues @SVar @V values, Map.empty, Map.empty)
-        analysisEnv  = initialEnv PrmAdr
+analyze e = undefined -- let ((sto, retSto, _), state) = (EF.setup initialState >>= EF.iterate intra)
+            --         & EF.runEffectT @[_] (Main e)
+            --         & runIdentity
+            -- in (unifyStore sto state, SVar.unify retSto state)
+  -- where runIntra :: (EF.EffectSVarM m (Component Ctx), SVar.MonadStateVar m) => Component Ctx -> Pid -> Exp -> Env Ctx -> State -> m State
+  --       runIntra cmp pid exp' env (sto, retSto, mailboxes) = do
+  --            (m, mailboxes') <- mailbox pid mailboxes
+  --            r <-   (Analysis.Monad.eval exp' >>= writeAdr cmp)
+  --                   & runEvalT
+  --                   & runMayEscape @(Set DomainError)
+  --                   & runCallT @V @Ctx
+  --                   & runSpawnT
+  --                   & runEnv env
+  --                   & runAlloc @CExp @_ @Ctx (const . const ())
+  --                   & runAlloc @_ @Ctx PaiAdr
+  --                   & runAlloc @_ @Ctx VecAdr
+  --                   & runAlloc @_ @Ctx StrAdr
+  --                   & runAlloc @_ @Ctx EnvAdr
+  --                   & runActorT m pid
+  --                   & runCtx ()
+  --                   & runJoinT
+  --                   & runSchemeStoreT sto
+  --                   & runStoreT' retSto
+  --                   & runActorSystemT mailboxes'
+  --            let (((_, sto'), retSto'), mailboxes'') = r
+  --            return (sto', retSto', mailboxes'')
+  --       mailbox pid mailboxes = do
+  --           var <- maybe (SVar.depend Set.empty) pure (Map.lookup pid mailboxes)
+  --           mb  <- SVar.read var
+  --           return (mb, Map.insert pid var mailboxes)
+  --       intra cmp@(Main expr) = runIntra cmp CP.EntryPid expr analysisEnv
+  --       intra cmp@(Actor pid expr ctx env) = runIntra cmp pid expr env
+  --       initialState = do
+  --           values <- foldM (\m (adr, v) -> SVar.new v <&> flip (Map.insert adr) m) Map.empty (Map.toList (initialSto @V analysisEnv))
+  --           return (fromValues @SVar @V values, Map.empty, Map.empty)
+  --       analysisEnv  = initialEnv PrmAdr

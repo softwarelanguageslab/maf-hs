@@ -45,8 +45,17 @@ import Control.Monad.Cond (ifM)
 import Analysis.Monad.DependencyTracking (DependencyTrackingM, trigger, register)
 import Analysis.Monad.WorkList (WorkListM)
 import Lattice.Class (BottomLattice)
+import Domain.Scheme.Actors.Message
 
-type ActorEvalM m v msg mb = (SchemeM m v, ActorDomain v, ActorM m (ARef v) msg mb, ActorBehaviorM m v)
+type ActorEvalM m v msg mb = 
+   (SchemeM m v, 
+    ActorDomain v, 
+    ActorM m (ARef v) msg mb, 
+    ActorBehaviorM m v,
+    -- message representations
+    MessageDomain msg, 
+    Payload msg ~ v, 
+    Tag msg ~ CP String)
 
 class ActorBehaviorM m v | m -> v where
    -- | Spawn a new actor with the given behavior, returns an actor reference

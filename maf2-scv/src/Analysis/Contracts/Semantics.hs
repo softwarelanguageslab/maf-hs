@@ -18,8 +18,8 @@ import qualified Data.Set as Set
 import Control.Monad.Join
 import Control.Monad.DomainError (escape, DomainError (WrongType))
 import Domain ( ActorDomain(..), SchemeDomain(symbol) )
-import Analysis.Actors.Mailbox (Message(message))
-import Analysis.Actors.Monad ((!), sendMessage)
+import Analysis.Actors.Monad ((!), send)
+import Domain.Scheme.Actors.Message
 import qualified Domain.Core.SeqDomain.BoundedList as BoundedList
 import Domain.Scheme (nil)
 import Data.Set (Set)
@@ -107,7 +107,7 @@ monSend e contract tag values =
       [-- Actor reference ==> regular send
        (pure $ isActorRef contract, mjoins $ map (! message tag values) (Set.toList (arefs' contract))),
        -- Monitored value 
-       (pure $ isαmon contract, void $ deref (const $ checkSend e sendMessage tag values) (αmons contract) )]
+       (pure $ isαmon contract, void $ deref (const $ checkSend e (\t p r -> void $ send r (message t p)) tag values) (αmons contract) )]
       {- else -}
       (escape WrongType) >> return nil
 

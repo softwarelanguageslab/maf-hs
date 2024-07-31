@@ -42,6 +42,7 @@ library
       Data.Map.Extra
       Domain.Contract
       Domain.Contract.CP
+      Domain.Contract.Message
       Domain.Contract.Store
       Domain.Contract.Symbolic
       Domain.Symbolic
