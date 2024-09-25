@@ -10,12 +10,12 @@ import Analysis.Monad.ComponentTracking
 import Analysis.Monad.WorkList
 import Control.Monad.Reader
 import Control.Monad.Layer
-import Control.Monad.Lift
 import Control.Monad.Join
 import Analysis.Monad.DependencyTracking
 import Analysis.Monad.Store
 import Control.Monad.Cond
 import Analysis.Monad.Map
+import Debug.Trace
 
 ---
 --- IntraAnalysis monad layer 

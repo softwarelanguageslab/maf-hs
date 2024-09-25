@@ -1,4 +1,4 @@
-(letrec ((id (lambda (x) x))
+(letrec* ((id (lambda (x) x))
          (blur (lambda (y) y))
          (lp (lambda (a n)
                (if (<= n 1)

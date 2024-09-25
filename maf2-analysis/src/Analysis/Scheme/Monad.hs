@@ -11,6 +11,7 @@ import Control.Monad.DomainError
 import Control.Monad.Escape
 import Syntax.Ide
 import Lattice.Equal
+import Analysis.Monad.Fix (MonadFixpoint)
 
 stoPai :: SchemeDomainM e v m => e -> PaiDom v -> m v
 stoPai ex v = allocPai ex >>= (\adr -> writeAdr adr v $> pptr adr)
@@ -46,14 +47,10 @@ type SchemeDomainM e v m = (
 type SchemeM' m v = (
    SchemeDomainM Exp v m,
    -- Environment
-   EnvM m (Adr v) (Env v),
-   --
-   CallM m (Env v) v)
+   EnvM m (Adr v) (Env v))
 
 -- | Full Scheme analysis monad
-type SchemeM m v = (
-   SchemeM' m v,
-   EvalM m v Exp)
+type SchemeM m v = (SchemeM' m v, MonadFixpoint m Exp v)
 
 allocPai :: SchemeDomainM e v m => e -> m (PAdr v)
 allocPai = alloc

@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Analysis.Monad.Fix (MonadFixpoint (..), FixT (..), runFixT) where
+module Analysis.Monad.Fix (lfp, MonadFixpoint (..), FixT (..), runFixT) where
 
 import Analysis.Monad.Cache
 import Analysis.Monad.ComponentTracking (ComponentTrackingM, call)
@@ -11,6 +11,7 @@ import Control.Monad.Identity (IdentityT (IdentityT))
 import Control.Monad.Join (MonadJoin)
 import Control.Monad.Layer (MonadLayer, MonadTrans)
 import Lattice.Class
+import Analysis.Monad.WorkList (WorkListM(..), iterateWL)
 
 -- | Type of Kleisli arrows, distinct from `Kleisli` newtype from
 -- the standard library.
@@ -43,3 +44,7 @@ instance
   MonadFixpoint (FixT b c m) b c
   where
   fix f = f call
+
+-- | Compute the least fixed point for the given (initial) component
+lfp :: (WorkListM m a) => (a -> m b) -> a ->  m ()
+lfp f initialCmp = add initialCmp >> iterateWL f

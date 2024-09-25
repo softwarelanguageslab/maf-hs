@@ -17,6 +17,7 @@ import Control.Monad.Layer
 import Analysis.Monad.Cache
 import Data.TypeLevel.AssocList
 import Data.Kind (Type)
+import Control.Monad.Escape (MonadEscape(..))
 
 ------------------------------------------------------------
 --- The AllocM typeclass

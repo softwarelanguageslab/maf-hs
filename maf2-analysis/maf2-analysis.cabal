@@ -141,7 +141,7 @@ executable maf-exe
   other-modules:
       Entrypoints
       Run.Actor
-      Run.Analyzer
+      Run.Scheme
       Run.Erlang
       Run.Interpreter
       Run.Python

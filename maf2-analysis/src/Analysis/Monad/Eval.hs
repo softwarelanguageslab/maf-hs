@@ -4,3 +4,4 @@ module Analysis.Monad.Eval (
 
 class (Monad m) => EvalM m v e  | m -> v where
    eval :: e -> m v
+

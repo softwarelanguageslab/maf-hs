@@ -1,16 +1,17 @@
-{-# LANGUAGE NamedFieldPuns, LambdaCase #-}
+{-# LANGUAGE LambdaCase #-}
 -- | Runs a configurable analysis on the given file
-module Run.Analyzer(Options, options, main) where
+module Run.Scheme(Options, options, main) where
 
 import Options.Applicative
 import Analysis.Scheme.Simple
 import Text.Printf
 import Data.List (intercalate)
 import Data.Map (Map)
-import Analysis.Scheme.Store (values)
+import Analysis.Scheme.Store ()
 import qualified Data.Map as Map
 import Domain.Scheme.Store
 import Data.Print
+import Analysis.Scheme (AnlRes)
 
 newtype Options = Options String deriving Show
 
@@ -26,8 +27,13 @@ options =
    Options <$>
       strOption (long "filename" <> short 'f' <> help "the file to analyse")
 
+values :: AnlRes V -> Map VariableAdr V
+values (sto, _, _, _, _) = sto
+
 main :: Options -> IO ()
 main (Options filename) = do
      contents <- readFile filename
-     putStrLn $ printSto (values (runAnalysis contents))
+     let sto = values (runAnalysis contents)
+     putStrLn "Analysis completed"
+     putStrLn $ printSto sto
 
