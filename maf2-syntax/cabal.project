@@ -2,6 +2,7 @@ with-compiler: ghc-9.4.8
 
 packages:
 	./
+        ../thirdparty/language-python/language-python/
 
 allow-older: *
 allow-newer: *

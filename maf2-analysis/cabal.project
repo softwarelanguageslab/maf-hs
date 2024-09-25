@@ -8,4 +8,5 @@ source-repository-package
 packages:
    ../maf2-syntax/
    ../maf2-domains/
+   ../thirdparty/language-python/language-python/
    ./

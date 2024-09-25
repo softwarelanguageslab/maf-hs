@@ -13,13 +13,18 @@ author:         Software Languages Lab - VUB
 maintainer:     example@example.com
 copyright:      2023 Author name here
 license:        BSD-3-Clause
-build-type:     Simple
+build-type:     Custom
 extra-source-files:
     preludes/actor.scm
 
 source-repository head
   type: git
   location: https://github.com/softwarelanguageslab/maf2-syntax
+
+custom-setup
+  setup-depends:
+      Cabal
+    , base >=4.17 && <5
 
 library
   exposed-modules:
