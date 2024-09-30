@@ -29,8 +29,6 @@ import Control.Monad.Escape
 import Data.Function ((&))
 import Analysis.Python.Escape
 import Analysis.Monad.Stack
-import Lattice.Tainted (Tainted)
-
 ---
 --- Python analysis fixpoint algorithm
 ---

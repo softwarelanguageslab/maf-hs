@@ -75,6 +75,6 @@ runFile fileName =
       putStrLn "\n"
 
 main :: Options -> IO ()
-main (Options fileName) = runREPL
+main (Options fileName) = runFile fileName
 
 
