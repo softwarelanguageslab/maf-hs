@@ -7,7 +7,8 @@ module Control.Monad.Escape (
    escape, 
    orElse, 
    try,
-   catchOn
+   catchOn,
+   fromValue
 ) where
 
 import Lattice.Class hiding (Bottom)
@@ -50,6 +51,14 @@ data MayEscape e v = Bottom
                    | Value v
                    | MayBoth v e
    deriving (Eq, Ord, Functor, Show)
+
+-- | Retrieve the value from `MayEscape`, or 
+-- return the default if there is only an error 
+-- and no value.
+fromValue :: a -> MayEscape e a -> a 
+fromValue _ (Value v) = v 
+fromValue _ (MayBoth v _) = v 
+fromValue v _ = v 
 
 instance Foldable (MayEscape e) where 
    foldMap _ Bottom = mempty
