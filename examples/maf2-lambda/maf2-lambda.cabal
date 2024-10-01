@@ -1,0 +1,82 @@
+cabal-version: 2.2
+
+-- This file has been generated from package.yaml by hpack version 0.36.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           maf2-lambda
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/githubuser/maf2-lambda#readme>
+homepage:       https://github.com/githubuser/maf2-lambda#readme
+bug-reports:    https://github.com/githubuser/maf2-lambda/issues
+author:         Author name here
+maintainer:     example@example.com
+copyright:      2024 Author name here
+license:        BSD-3-Clause
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    CHANGELOG.md
+
+source-repository head
+  type: git
+  location: https://github.com/githubuser/maf2-lambda
+
+library
+  exposed-modules:
+      Analysis.Lambda
+      Domain.Lambda
+      Lib
+      Syntax.Lambda
+  other-modules:
+      Paths_maf2_lambda
+  autogen-modules:
+      Paths_maf2_lambda
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
+  build-depends:
+      base >=4.7 && <5
+    , containers
+    , maf2-analysis
+    , maf2-domains
+    , singletons
+  default-language: Haskell2010
+
+executable maf2-lambda-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_maf2_lambda
+  autogen-modules:
+      Paths_maf2_lambda
+  hs-source-dirs:
+      app
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , containers
+    , maf2-analysis
+    , maf2-domains
+    , maf2-lambda
+    , singletons
+  default-language: Haskell2010
+
+test-suite maf2-lambda-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Paths_maf2_lambda
+  autogen-modules:
+      Paths_maf2_lambda
+  hs-source-dirs:
+      test
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , containers
+    , maf2-analysis
+    , maf2-domains
+    , maf2-lambda
+    , singletons
+  default-language: Haskell2010

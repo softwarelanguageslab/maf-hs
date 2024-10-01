@@ -1,0 +1,10 @@
+cradle:
+  stack:
+    - path: "./src"
+      component: "maf2-lambda:lib"
+
+    - path: "./app/Main.hs"
+      component: "maf2-lambda:exe:maf2-lambda-exe"
+
+    - path: "./test"
+      component: "maf2-lambda:test:maf2-lambda-test"
