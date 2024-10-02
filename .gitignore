@@ -4,3 +4,6 @@
 output/
 dist-newstyle/
 notes.txt
+README.pdf
+image_x86_64.tar.gz
+image_arm64.tar.gz

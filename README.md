@@ -3,7 +3,7 @@ MONARCH: A MONadic ARCHitecture for Static Analyses through Abstract Definitiona
 
 Monarch is a static analysis framework for developing static analyses based on the 
 abstract definitional interpreters paradigm. This artifact contains the source 
-code of the framework and reflects the state of the framework at 2024-09-12.
+code of the framework and reflects the state of the framework at 2024-09-12, with some fixes backported from 2024-10-02.
 
 The latest version of the framework is available at https://github.com/softwarelanguageslab/monarch.
 
@@ -16,9 +16,9 @@ includes all the tools with their correct versions in addition to
 a compiled executable that can be used to test the Python analysis 
 provided by the framework.
 
-The Docker image can be used as follows:
+The Docker image can be used as follows (for arm architectures use `arm64` instead of `x86_64`):
 ```
-$ docker load < image.tar.gz
+$ docker load < image_x86_64.tar.gz
 $ docker run -it monarch 
 Missing: COMMAND
 
@@ -27,11 +27,28 @@ Usage: maf-exe COMMAND
   MAF: Monadic Analysis Framework
 ```
 
-It exposes the `maf-exe` binary which expects a subcommand (ie., the analysis to run) and some optional arguments (e.g.., the file to analyze). For instance to analyze a Python file, the following command may be used:
+The Docker image contains all necessary source and test files 
+from the main repository. Therefore, there is no need to mount 
+any source files as volumes inside the docker container.
+
+The docker image exposes the `maf-exe` binary as its entrypoint which expects a subcommand (ie., the analysis to run) and some optional arguments (e.g.., the file to analyze). For instance to analyze a Python file, the following command may be used:
 
 ```
 $ docker run -it monarch python -f maf2-analysis/programs/python/Counter.py
 ```
+
+For changing the implementation of the framework, or adding your own analysis, we recommend to either: 
+
+* Update the implementation on the host and rebuild the Docker image from scratch. 
+* Update the implementation on the host and also compile it on the host, this requires a valid installation of GHC 9.4.8 and its associates tools (cf. "Building from Source"). 
+* Mount the code at `/artifact` and use the tools and minimal editor provided in the docker image.
+
+For the last option, the following command can be used (assuming that your current working directory is this artifact):
+
+```bash
+$ docker run -v $PWD:/artifact --entrypoint /bin/bash -it monarch 
+```
+
 
 ### Building from source
 
@@ -41,7 +58,23 @@ The framework can be built from source but requires a few dependencies:
 * ghc: version 9.4.8 of GHC is required for the framework to build 
 successfully. 
 
-Both of these dependencies can be easily installed using `ghcup`.
+Both of these dependencies can be easily installed using `ghcup`. To compile and 
+run an analysis implemented in the framework, navigate to the `maf2-analysis` 
+directory and run the following command:
+
+```
+cabal run 
+```
+
+This command runs the same code as the entrypoint of the Docker image and 
+accepts the same type of arguments. However, in order to pass these 
+arguments to the program rather than `cabal`, additional arguments 
+to `cabal` are required. For instance, to run the Python analysis on the 
+`Counter.py` file, the following command can be used: 
+
+```
+cabal run . -- python -f programs/python/Counter.py
+```
 
 ## Using the Framework
 
@@ -98,7 +131,7 @@ Language semantics are in `Analysis.LANG.Semantics`, while its monad type class
 constraints are in `Analysis.LANG.Monad`. This module sometimes also defines 
 language-specific monadic type classes and their transformers.
 Static analysis instantiations are usually in the `Analysis.LANG` module,
-except for Python which uses the `Analysis.LANG.Fixpoint` module.
+except for Python which uses the `Analysis.Python.Fixpoint` module.
 
 ### Usage as a library
 
@@ -136,8 +169,19 @@ Next, you need to add the Monarch packages (i.e., `maf2-syntax`,  `maf2-domains`
 
 ### An Analysis for a simple lambda-calculus
 
-To get started with implementing static analyses in Monarch, we suggest the `examples/lambda-calculus` package 
+To get started with implementing static analyses in Monarch, we suggest the `examples/maf2-lambda` package 
 as an example. This package contains an analysis for a simple lambda-calculus inspired programming language.
+
+To run this example from the Docker container, the following command may be used:
+
+```
+docker run --entrypoint ./examples/run-lambda.sh -it monarch
+```
+
+The `examples/maf2-lambda/` contains a README with more details 
+about the example. The code is also well-documented to guide 
+you through implementing your own static analysis on top 
+of our framework.
 
 ## Reproducing examples of the paper
 
@@ -159,8 +203,13 @@ an abstraction of the program's memory. This analysis
 can be executed by running the artifact with the appropriate
 set of arguments.
 
-The command depicted below illustrates how the artifact can be invoked for executing the Python analysis (assuming the `maf2-analysis` package was installed using `cabal install`):
+The command depicted below illustrates how the artifact can be invoked for executing the Python analysis: 
 
+```
+docker run -it monarch python -f maf2-analysis/programs/python/Counter.py
+```
+
+Or if the framework was installed from source:
 ```
 maf-exe python -f maf2-analysis/programs/python/Counter.py
 ```
