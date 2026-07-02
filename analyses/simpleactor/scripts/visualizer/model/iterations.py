@@ -37,7 +37,6 @@ class IterationTracker:
         self._iterations: Dict[Span, Int] = {}
         self._open_span: Span | None = None
         self._open_count: int = 0
-        self._open_started: float = 0.0
 
     def components(self) -> List[Span]:
         """Return the spans that have a completed or in-progress iteration."""
@@ -65,7 +64,6 @@ class IterationTracker:
     def consume(self, event: Event) -> None:
         """Advance the tracker state with a single event."""
         if isinstance(event, IntraStarted):
-            self._close_open()
             self._iterations[event.span] = self._iterations.get(event.span, 0) + 1
             self._open_span = event.span
             self._open_count = 0
@@ -73,7 +71,7 @@ class IterationTracker:
             self.changed.emit(event.span)
         elif isinstance(event, IntraEnded):
             if self._open_span is not None and event.span == self._open_span:
-                self._close_open()
+                self._close_open(event.duration)
         elif isinstance(event, PreBranch):
             if self._open_span is not None:
                 self._open_count += 1
@@ -81,13 +79,14 @@ class IterationTracker:
         elif isinstance(event, PostBranch):
             pass
 
-    def _close_open(self) -> None:
+    def _close_open(self, duration = None) -> None:
         """Finalize the currently open iteration and notify subscribers."""
         if self._open_span is None:
             return
         span = self._open_span
         self._completed.setdefault(span, []).append(self._open_count)
-        self._durations.setdefault(span, []).append(self._clock() - self._open_started)
+        if duration is not None:
+            self._durations.setdefault(span, []).append(duration)
         self._open_span = None
         self._open_count = 0
         self.changed.emit(span)

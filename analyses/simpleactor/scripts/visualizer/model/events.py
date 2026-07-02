@@ -58,6 +58,8 @@ class IntraEnded:
     """End of an intra-analysis for the given component span."""
 
     span: Span
+    # Duration in seconds
+    duration: int
 
 
 @dataclass(frozen=True)
@@ -94,7 +96,9 @@ def parse_event(line: str):
         if tag == "IntraStarted":
             return IntraStarted(Span.from_json(record["contents"]))
         if tag == "IntraEnded":
-            return IntraEnded(Span.from_json(record["contents"]))
+            span = Span.from_json(record["contents"][0])
+            duration = record["contents"][1] / 10**9
+            return IntraEnded(span, duration)
         if tag == "PreBranch":
             return PreBranch()
         if tag == "PostBranch":

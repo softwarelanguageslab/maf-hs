@@ -57,6 +57,8 @@ class StdinReader:
                 self._on_line(line)
         except (ValueError, OSError):
             pass
+        except Exception as e:
+            print(f"an error {e}")
         finally:
             if self._on_eof is not None and not self._stop.is_set():
                 self._on_eof()
