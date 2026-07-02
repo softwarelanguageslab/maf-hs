@@ -179,12 +179,13 @@ instance {-# OVERLAPPING #-} (Show i, Ord i) => FormulaSolver i (Z3Solver i) whe
 
    solve _ (Atomic Fail) = return Unsat
    solve count script   = do
+      -- liftIO (print count)
       restoreCheckpoint
       -- Z3Solver $ liftIO $ putStrLn $ "trying to translate script " ++ show script
       -- Declare all variables as constants
       let (translatedScript, names, _) = translate count script
-      liftIO (putStrLn $ "Solver:original>>>" ++ show script)
-      liftIO (putStrLn $ "Solver:translated>>>" ++ show translatedScript)
+      -- liftIO (putStrLn $ "Solver:original>>>" ++ show script)
+      -- liftIO (putStrLn $ "Solver:translated>>>" ++ show translatedScript)
       -- evaluate the mall in the solver
       -- mapM_ (command . printf "(declare-const %s V)" ) names
       mapM_ (command . printf "(declare-const %s V)" ) names
