@@ -36,7 +36,7 @@ import Control.Monad.Except (ExceptT, throwError)
 import GHC.Generics (Generic)
 import Analysis.Monad.Environment (EnvM (..))
 import Analysis.Monad.Cache (CacheT, MonadCache (..))
-import Analysis.Monad.Map (MapM (..), MapT, runMapT, In, Out)
+import Analysis.Monad.Map (MapM (..), MapT, runMapT, In, Out, runWithMapping')
 import Analysis.Monad.Join (SetHookNonDetT, MonadNonDetHook (..))
 import Analysis.Monad (WorkListT, CtxM (..), runWithComponentTracking, runIntraAnalysis, StoreM (lookupAdr, hasAdr))
 import qualified Lattice.Class as Lattice
@@ -82,7 +82,6 @@ import qualified Analysis.ASE.SymbolicVariable as ASE
 import qualified Analysis.ASE.PC as ASE
 import Syntax.Span
 import qualified Domain.Symbolic.Class as Symbolic
-import Control.DeepSeq (NFData)
 import Syntax.AST
 
 -- These are here for the instances of each domain for the "TopLifted" value.
@@ -90,7 +89,6 @@ import Domain.Core.PairDomain.TopLifted ()
 import Domain.Core.StringDomain.TopLifted ()
 -- import qualified RIO as Debug
 import qualified Control.Monad.State as State
-import qualified RIO as Debug
 import qualified Domain.Scheme.Class as Scheme
 import Analysis.Scheme.Monad (SchemeStoreT, runSchemeStoreT, SchemeStoreM)
 import qualified Domain.Scheme.Store as Store
@@ -101,11 +99,14 @@ import Control.Monad.Cond (ifM)
 import qualified Lattice.Trace as Lattice
 import Domain.Scheme.Store (SchemeStore)
 import Control.Monad.Identity
-import Control.Monad.Join (MonadJoinable(..))
-import qualified RIO.Text as T
+import Control.Monad.Join (MonadJoinable(..), MonadBottom (mbottom))
 import Data.Aeson (ToJSON)
 import qualified Data.Aeson as JSON
 import qualified RIO.ByteString.Lazy as ByteString
+import Control.DeepSeq
+import System.Clock
+import qualified RIO as Debug
+import qualified RIO.Text as T
 
 ------------------------------------------------------------
 -- Shorthands
@@ -259,12 +260,10 @@ type ProcT m = (
         -- escaping control flow, primarily used for handling errors
         MayEscapeT Err (
         -- the path constraint is also part of the context and is cached
-        SCV.FormulaT Domain.SymVar ActorVlu (
-        -- TODO: use an actual abstract count 
-        InftyCountT Domain.SymVar AbstractCount (
+        SCV.FormulaT Domain.SymVar ActorVlu  (
         -- the evaluation context, includes a self-reference, lexical and dynamic environment.
         ReaderT Ctx m
-     ))))
+     )))
 
 -- | The key that is used for caching function call results
 type ProcKey = Key (ProcT (IntraT Identity)) Cmp
@@ -300,6 +299,17 @@ class Ord ix => ToIndex ix where
 instance ToIndex () where
     toIndex _ = ()
 
+-- | An index for each actor 
+newtype ActorIdx = ActorIdx ActorRef
+        deriving (Ord, Eq, Show, Generic)
+
+instance NFData ActorIdx
+
+instance ToIndex ActorIdx where 
+    toIndex (_ ::*:: _ ::*:: ctx' ::*:: _) = 
+        ActorIdx $ _self ctx'
+    toIndex _ = error "unreachable pattern"
+
 ------------------------------------------------------------
 
 -- | Intra-actor fixpoint: monadic context used for analyzing a single 
@@ -320,7 +330,7 @@ type IntraT m = (
 
 -- | Lift an IntraT computation to a ProcT computation
 liftIntraT :: Monad m => IntraT m a -> ProcT (IntraT m) a 
-liftIntraT = upperM . upperM . upperM . upperM
+liftIntraT = upperM . upperM . upperM
 
 -- | Lift a InterTurnState computation to an IntraT computation
 liftInterTurnT :: Monad m => StateT InterTurnState m a -> IntraT m a
@@ -350,11 +360,11 @@ instance NFData BlameRecord
 -- recorded blames). Dependency tracking lives in dedicated
 -- 'DependencyTrackingT' layers, see 'GlobalT'.
 data AnalysisState ix = AnalysisState {
-        _storeIn  :: Map ix (SchemeStore Exp K ActorVlu),
-        _storeOut :: Map ix (SchemeStore Exp K ActorVlu),
+        _storeIn    :: Map ix (SchemeStore Exp K ActorVlu),
+        _storeOut   :: Map ix (SchemeStore Exp K ActorVlu),
         _spawnStore :: Map ActorRef ActorSto,
-        _trace    :: [System],
-        _blames   :: Set BlameRecord
+        _trace      :: [System],
+        _blames     :: Set BlameRecord
     } deriving (Ord, Eq, Show, Generic)
 
 instance NFData ix => NFData (AnalysisState ix)
@@ -377,6 +387,8 @@ type GlobalT ix m = (
         ComponentTrackingT ProcKey (
         MapT (In ix ActorSto) ActorSto ( 
         MapT (Out ix ActorSto) ActorSto ( 
+        MapT (In ix SymCou) SymCou (
+        MapT (Out ix SymCou) SymCou (
         MapT ProcKey ProcVal (
         DependencyTrackingT ProcKey ProcKey (
         DependencyTrackingT ProcKey (Store.VarAdr K) (
@@ -385,7 +397,9 @@ type GlobalT ix m = (
         DependencyTrackingT ProcKey (Store.StrAdr Exp K) (
         DependencyTrackingT ProcKey (In ix ActorSto) (
         DependencyTrackingT ProcKey (Out ix ActorSto) (
-        WorkListT [ProcKey] m)))))))))))))
+        DependencyTrackingT ProcKey (In ix SymCou) (
+        DependencyTrackingT ProcKey (Out ix SymCou) (
+        WorkListT [ProcKey] m)))))))))))))))))
 
 ------------------------------------------------------------
 
@@ -404,19 +418,28 @@ instance ( Monad m
          , MonadMultiStore ActorSto m
          , MapM (In ix ActorSto) ActorSto m
          , MapM (Out ix ActorSto) ActorSto m
+         , MapM (In ix SymCou) SymCou m 
+         , MapM (Out ix SymCou) SymCou m
+         , MonadAbstractCount Domain.SymVar AbstractCount m
          , MonadIO m
          , ToIndex ix
+         , Show ix
          ) => MonadNonDetHook (StoreHookT m) where
     -- Reset the working store to the input store recorded for this index.
     preBranch = StoreHookT $ upperM $ do
-        logEvent PreBranch
-        idx <- toIndex @ix <$> currentCmp
-        putMultiStore =<< getStoreIn idx
+        -- logEvent PreBranch
+        cmp <- currentCmp
+        let idx = toIndex @ix cmp
+        sto <- getStoreIn idx
+        cou <- getCountIn idx
+        putMultiStore sto
+        putCounts cou
     -- Fold the resulting working store into the output store for this index.
     postBranch = StoreHookT $ upperM $ do
-        logEvent PostBranch
+        -- logEvent PostBranch
         idx <- toIndex @ix <$> currentCmp
-        getMultiStore >>= putStoreOut idx
+        getMultiStore >>= joinStoreOut idx
+        getCounts >>= joinCountOut idx 
 
 ------------------------------------------------------------
 
@@ -426,7 +449,14 @@ instance ( Monad m
 -- which leayer of fixpoint iteration we are working on.
 
 -- The monad for the entire analysis
-type AnalysisT ix m = (ProcT (IntraT (StoreHookT (SchemeStoreT Exp K ActorVlu (IntraAnalysisT ProcKey (SystemT (GlobalT ix m)))))))
+type AnalysisT ix m = 
+    ( ProcT ( 
+      IntraT (
+      StoreHookT (
+      AbstractCountT Domain.SymVar AbstractCount (
+      SchemeStoreT Exp K ActorVlu (
+      IntraAnalysisT ProcKey (
+      SystemT (GlobalT ix m))))))))
 -- The monad stack for the intra-actor fixpoint.
 type AnalysisIntraT ix m = (IntraT (SystemT (GlobalT ix m)))
 -- The monad stack for the inter-actor fixpoint. 
@@ -438,9 +468,11 @@ type AnalysisGlobalT ix m = (GlobalT ix m)
 -- Monad instances
 ------------------------------------------------------------
 
-instance Monad m => MonadFresh ActorVlu (ProcT m) where
+instance (MonadAbstractCount Domain.SymVar AbstractCount m) => MonadFresh ActorVlu (ProcT m) where
     -- TODO: let the semantics decide what value to annotate with the symbolic variable
-    fresh = return . flip Symbolic.var Lattice.top . flip ASE.SymbolicVariable ASE.emptyPC . spanOf
+    fresh e = countIncrement var $> varValue
+        where var =  flip ASE.SymbolicVariable ASE.emptyPC $ spanOf e
+              varValue = flip Symbolic.var Lattice.top var
 
 
 -- Intra-procedural monad instances.
@@ -479,13 +511,22 @@ instance Monad m => MonadPartition Partition (IntraT m) where
     get = return Lattice.bottom
 
 -- | Adds the message context based on information in the monad
-addMessageCtx :: (SCV.FormulaSolver Domain.SymVar m, MonadIO m, SchemeStoreM Exp ActorVlu m) => MsgPayload ->  (ProcT (IntraT m) Msg)
+addMessageCtx :: (
+      SCV.FormulaSolver Domain.SymVar m
+    , MonadAbstractCount Domain.SymVar AbstractCount m
+    , MonadIO m
+    , SchemeStoreM Exp ActorVlu m
+    ) => MsgPayload ->  (ProcT (IntraT m) Msg)
 addMessageCtx payload = do 
         reachableAdrs <- traceStore (Lattice.trace payload) lookupSchemeAdr
         reachableValues <- Set.unions <$> mapM lookupSchemeAdr (Set.toList reachableAdrs)
         let reachableVariables = foldMap Symbolic.strictVariables reachableValues
         pc <- SCV.getPc
-        return $ message payload $ SCV.simplifyPC $ SCV.restrictPC reachableVariables pc
+        let restrictedPC =  SCV.simplifyPC $ SCV.restrictPC reachableVariables pc
+        count' <- getCounts
+        let restrictedCounts = Map.restrictKeys count' reachableVariables 
+        Debug.traceIO $ T.pack $ "restricted counts " ++ show restrictedCounts
+        return $ message payload (restrictedPC, restrictedCounts)
     where lookupSchemeAdr :: forall m . (SchemeStoreM Exp ActorVlu m, MonadJoinable m) => Store.SchemeAdr Exp K -> m (Set ActorVlu)
           lookupSchemeAdr = \case 
             Store.SStrAdr _ -> 
@@ -507,7 +548,13 @@ addMessageCtx payload = do
                     (Set.singleton <$> lookupAdr @_ @ActorVlu adr)
                     (return Set.empty)
 
-instance (MonadIO m, SCV.FormulaSolver Domain.SymVar m, SchemeStoreM Exp ActorVlu m, MonadMultiStore ActorSto m, MonadAnalysisState ix m) => MonadMailbox Partition ActorRef ActorVlu MsgContext (ProcT (IntraT m)) where
+instance (
+     MonadIO m
+   , SCV.FormulaSolver Domain.SymVar m
+   , MonadAbstractCount Domain.SymVar AbstractCount m
+   , SchemeStoreM Exp ActorVlu m
+   , MonadMultiStore ActorSto m
+   , MonadAnalysisState ix m) => MonadMailbox Partition ActorRef ActorVlu MsgContext (ProcT (IntraT m)) where
   send ref v = do
       -- actually "send" the message
       v' <- addMessageCtx v
@@ -526,9 +573,7 @@ instance (MonadIO m, SCV.FormulaSolver Domain.SymVar m, SchemeStoreM Exp ActorVl
   recv = 
     liftIntraT $ uses inbox (MB.dequeue Lattice.bottom)
   putMailbox = liftIntraT . assign inbox
-  integrateCtx pc =  do
-    Debug.traceIO (T.pack $ "integrating context " ++ show pc)
-    SCV.putPc pc
+  integrateCtx (pc, counts) = SCV.putPc pc >> putCounts counts
 
 ------------------------------------------------------------
 
@@ -554,7 +599,7 @@ instance {-# OVERLAPPING #-}
     spawn behExpr environ k = do
         newRef <- upperM (spawn behExpr environ k)
         sto    <- getMultiStore
-        modifyAnalysisState (over spawnStore (Map.insert newRef sto))
+        modifyAnalysisState (over spawnStore (Map.insertWith Lattice.join newRef sto))
         return newRef
 
 ------------------------------------------------------------
@@ -584,9 +629,14 @@ instance Monad m => MonadAnalysisState ix (StateT (AnalysisState ix) m) where
   getAnalysisState = State.get
   putAnalysisState = State.put
 
+
+----------------------------------------
+-- Flow-sensitive stores
+----------------------------------------
+
 -- | Read the input store recorded for an index, defaulting to bottom.
 getStoreIn :: forall ix m . (Ord ix, MapM (In ix ActorSto) ActorSto m) => ix -> m ActorSto
-getStoreIn =  fmap (fromMaybe Lattice.bottom) .  MapM.get @(In ix ActorSto) . MapM.In
+getStoreIn =  fmap (fromMaybe Lattice.bottom) . MapM.get @(In ix ActorSto) . MapM.In
 
 -- | Join a store into the input store recorded for an index.
 joinStoreIn :: forall ix m . (Ord ix, MapM (In ix ActorSto) ActorSto m) => ix -> ActorSto -> m ()
@@ -594,7 +644,11 @@ joinStoreIn idx  = MapM.joinWith @(In ix ActorSto) (MapM.In idx)
 
 -- | Read the output store recorded for an index, defaulting to bottom.
 getStoreOut :: forall ix m . (Ord ix, MapM (Out ix ActorSto) ActorSto m) => ix -> m ActorSto
-getStoreOut = fmap (fromMaybe Lattice.bottom) . MapM.get @(Out ix ActorSto) . MapM.Out
+getStoreOut =  fmap (fromMaybe Lattice.bottom) . MapM.get @(Out ix ActorSto) . MapM.Out
+
+-- | Read the output store recorded for an index, defaulting to mbottom 
+getStoreOutShortciruit :: forall ix m . (Ord ix, MapM (Out ix ActorSto) ActorSto m, MonadBottom m) => ix -> m ActorSto 
+getStoreOutShortciruit = MapM.get @(Out ix ActorSto) . MapM.Out >=> maybe mbottom return
 
 -- | Join a store into the output store recorded for an index.
 joinStoreOut :: forall ix m . (Ord ix, MapM (Out ix ActorSto) ActorSto m) => ix -> ActorSto -> m ()
@@ -608,6 +662,31 @@ putStoreOut idx = MapM.put @(Out ix ActorSto) (MapM.Out idx)
 traceSystem :: Monad m => System -> AnalysisGlobalT ix m System
 traceSystem sys = (trace %= (sys:)) $> sys
 
+----------------------------------------
+-- Flow-sensitive abstract counting for symbolic variables
+----------------------------------------
+
+joinCountIn :: forall ix m . (Ord ix, MapM (In ix SymCou) SymCou m) => ix -> SymCou -> m () 
+joinCountIn idx = 
+    MapM.joinWith @(In ix SymCou) (MapM.In idx) 
+
+getCountIn :: forall ix m . (Ord ix, MapM (In ix SymCou) SymCou m) => ix -> m SymCou
+getCountIn = 
+    fmap (fromMaybe Lattice.bottom) . MapM.get @(In ix SymCou) . MapM.In 
+
+joinCountOut :: forall ix m . (Ord ix, MapM (Out ix SymCou) SymCou m) => ix -> SymCou -> m () 
+joinCountOut idx = 
+    MapM.joinWith @(Out ix SymCou) (MapM.Out idx)
+
+getCountOut :: forall ix m . (Ord ix, MapM (Out ix SymCou) SymCou m) => ix -> m SymCou
+getCountOut = 
+    fmap (fromMaybe Lattice.bottom) . MapM.get @(Out ix SymCou) . MapM.Out
+
+putCountOut :: forall ix m . (Ord ix, MapM (Out ix SymCou) SymCou m) => ix -> SymCou -> m () 
+putCountOut idx = 
+    MapM.put @(Out ix SymCou) (MapM.Out idx)
+
+
 ------------------------------------------------------------
 -- Logging & observability
 ------------------------------------------------------------
@@ -619,7 +698,7 @@ data LoggingEvent =
     -- Each component is identified by its source-code location (span). 
       IntraStarted Span
     -- | Emitted at the end of an intra-analysis
-    | IntraEnded Span
+    | IntraEnded Span Integer
     -- | Emitted before the start of a branch, always happens after 
     -- the start, and before the end of an intra-analysis.
     | PreBranch 
@@ -639,28 +718,37 @@ logEvent = liftIO . ByteString.putStrLn . JSON.encode
 ------------------------------------------------------------
 
 -- | Constraints that need to be satisfied when executing the analysis
-type AnalysisM ix m = (MonadIO m, SCV.FormulaSolver Domain.SymVar m, ToIndex ix)
+type AnalysisM ix m = (MonadIO m, SCV.FormulaSolver Domain.SymVar m, ToIndex ix, Show ix)
 
 -- | Intra-turn fixpoint: analyze a single turn of an actor, and returns a set of successor turns.
 --
 -- This is the only place where the semantics from 'Analysis.SimpleActor.Semantics' is actually called.
 intraTurn :: forall m ix . AnalysisM ix m => Beh -> ActorRef -> State -> StateT InterTurnState (AnalysisSystemT ix m) (Set Turn)
 intraTurn beh selfRef st = do
+        -- Debug.traceIO $ T.pack $ "transfer turn " ++ show selfRef
         -- compute a fixpoint over the function calls within this turn
         lfp intra key'
         -- The set of successor turns will have been cached at the entry component
         result <- (Set.fromList . map (uncurry Turn . first cntEither)) . maybe [] Set.toList <$> MapM.get key'
-        -- We must setup the store for the next turn based on the output store of the current one.
-        outputSto <- getStoreOut (toIndex @ix key')
+        -- We must setup the 'in' store for the next turn based on the output store of the current one.
+        outputSto <- getStoreOut $ toIndex @ix key'
         mapM_ (flip joinStoreIn outputSto . toIndex @ix) (foldMap (maybeToList . turnKey selfRef) (Set.toList result))
         return result
     where key'  = entryKey selfRef beh st
           intra :: ProcKey -> StateT InterTurnState (AnalysisSystemT ix m) ()
           intra k = do 
                   logEvent (IntraStarted (spanOfCmp k))
+                  start <- liftIO (getTime Monotonic)
                   result <- runAroundFixT @(AnalysisT ix m) around Semantics.eval k
-                          & mapStateT (runIntraAnalysis k . fmap fst . runSchemeStoreT @Exp @K @ActorVlu Store.emptySchemeStore . runStoreHookT)
-                  logEvent (IntraEnded (spanOfCmp k))
+                          & mapStateT (
+                                runIntraAnalysis k 
+                              . fmap fst 
+                              . runSchemeStoreT @Exp @K @ActorVlu Store.emptySchemeStore 
+                              . evalWithAbstractCountT
+                              . runStoreHookT)
+                  end <- result `deepseq` liftIO (getTime Monotonic)
+                  let diff = toNanoSecs $ diffTimeSpec start end
+                  logEvent (IntraEnded (spanOfCmp k) diff)
                   return result
           {-# SCC intra #-}
           -- Instrumentation around every recursive component call: snapshot the
@@ -670,8 +758,10 @@ intraTurn beh selfRef st = do
           around recur cmp = do
               idx :: ix <- toIndex @ix <$> upperM (key cmp)
               upperM . joinStoreIn idx =<< upperM getMultiStore
+              upperM . joinCountIn idx =<< upperM getCounts
               v <- recur cmp
-              -- upperM (putMultiStore =<< getStoreOut idx)
+              upperM (putMultiStore =<< getStoreOutShortciruit idx)
+              upperM (putCounts =<< getCountOut idx)
               return v
 
 -- | Inter-turn fixpoint: analyze a sequence of turns of an actor 
@@ -686,15 +776,12 @@ transferTurn _ (Turn Terminated _) = return Set.empty
 
 fixTurn :: AnalysisM ix m => ActorRef -> Turn -> AnalysisSystemT ix m (Set Turn)
 fixTurn selfRef turn0 = do
-    Debug.traceIO $ T.pack $ "========== " ++ show selfRef
-    -- Debug.traceIO $ T.pack $ "fixTurn actor=" ++ show selfRef ++ " inbox=" ++ show (turn0 ^. state . inbox)
     -- Run the inter-turn fixpoint, accumulating the actor's outgoing mail in the
     -- 'InterTurnState' as turns are analyzed.
     (result, interTurn) <- runStateT (Fix.lfp (Fix.lift $ transferTurn selfRef) (Set.singleton turn0))
                                       (InterTurnState Lattice.bottom)
     -- Fold the accumulated outbox into the global mailboxes.
     mbs %= Lattice.join (interTurn ^. outbox)
-    Debug.traceShowIO $ "fixTurn actor=" ++ show selfRef ++ " result-turns=" ++ show (Set.size result)
     return result
 
 -- | Inter-system fixpoint, analyze a system of actors until the global state (i.e., the mailboxes) no longer changes.
@@ -769,6 +856,8 @@ analyze mainExpr = do
           & runWithComponentTracking
           & runMapT @(In ix ActorSto) @ActorSto Map.empty
           & runMapT @(Out ix ActorSto) @ActorSto Map.empty
+          & runWithMapping' @(In ix SymCou) @SymCou 
+          & runWithMapping' @(Out ix SymCou) @SymCou 
           & runMapT @ProcKey @ProcVal Map.empty
           & runWithDependencyTracking @ProcKey @ProcKey
           & runWithDependencyTracking @ProcKey @(Store.VarAdr K)
@@ -777,13 +866,17 @@ analyze mainExpr = do
           & runWithDependencyTracking @ProcKey @(Store.StrAdr Exp K)
           & runWithDependencyTracking @ProcKey @(In ix ActorSto)
           & runWithDependencyTracking @ProcKey @(Out ix ActorSto)
+          & runWithDependencyTracking @ProcKey @(In ix SymCou)
+          & runWithDependencyTracking @ProcKey @(Out ix SymCou)
           & runWithWorkList
     return (system, analysisState, Map.mapKeys (\(MapM.Out ix') -> ix') stores)
     where initSystem = initialSystem mainExpr
           initState  = emptyAnalysisState
 
+type Idx = ActorIdx
+
 -- | Top-level function to analyze an actor system within the IO monad
-analyzeIO :: Exp -> IO (System, AnalysisState (), Map () ActorSto)
+analyzeIO :: Exp -> IO (System, AnalysisState Idx, Map Idx ActorSto)
 analyzeIO mainExpr = analyze mainExpr
                    & runCachedSolver
                    & runZ3SolverWithPrelude

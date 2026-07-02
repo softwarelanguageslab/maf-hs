@@ -36,6 +36,7 @@ dependencies:
 - aeson
 - regex-compat
 - ghc-experimental
+- clock
 
 
 ghc-options:
@@ -49,6 +50,7 @@ ghc-options:
 - -Wmissing-home-modules
 - -Wpartial-fields
 - -O3
+- -threaded
 - -fspecialise
 - -fexpose-all-unfoldings
 - -flate-dmd-anal
@@ -108,7 +110,6 @@ executables:
     - pretty-simple
     - mtl
     - criterion
-    - clock
     
 tests:
   simpleactor-tests:

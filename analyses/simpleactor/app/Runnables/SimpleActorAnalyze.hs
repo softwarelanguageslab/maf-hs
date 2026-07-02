@@ -16,7 +16,6 @@ import CommandLine.Options
 import Text.Pretty.Simple
 import Syntax.AST
 import qualified Domain.Scheme.Store as Store
-import Data.Maybe (fromJust)
 
 ------------------------------------------------------------
 -- Utilities
@@ -68,13 +67,18 @@ entrypoint InputOptions { .. } OutputDirOptions { .. } doBenchmark = do
 
 analyzeAst :: Exp -> String -> IO ()
 analyzeAst expr outDir = do
-    (_, state, sto) <- Fixpoint.analyzeIO expr
-    -- let sto    = Fixpoint._store $ snd output
-    let blames = Fixpoint._blames $ state
+        (_, state, sto) <- Fixpoint.analyzeIO expr
+        -- let sto    = Fixpoint._store $ snd output
+        let blames = Fixpoint._blames $ state
 
-    let trace = reverse $ map Fixpoint._mbs $ Fixpoint._trace $ state
-    putStrLn $ show blames
-    renderTraceMailboxesToDot outDir trace
-    putStrLn $ Store.printMap show (const True) (Store._paiStore $ fromJust $ Map.lookup () sto)
-    putStrLn $ Store.printMap show (const True) (Store._varStore $ fromJust $ Map.lookup () sto)
+        let trace = reverse $ map Fixpoint._mbs $ Fixpoint._trace $ state
+        putStrLn $ show blames
+        renderTraceMailboxesToDot outDir trace
+        mapM_ (uncurry printSto) (Map.toList sto)
+    where printSto k sto = 
+                do
+                    putStrLn ""
+                    putStrLn (show k) 
+                    putStrLn $ Store.printMap show (const True) (Store._paiStore sto)
+                    putStrLn $ Store.printMap show (const True) (Store._varStore sto)
 

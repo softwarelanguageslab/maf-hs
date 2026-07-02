@@ -32,6 +32,7 @@ type ActorMai = Map ActorRef PMB
 type ActorSto = SchemeStore Exp K ActorVlu
 type ActorPC  = PC SymVar
 type ActorCou = Map ActorRef AbstractCount
+type SymCou   = Map SymVar AbstractCount
 
 
 ------------------------------------------------------------
@@ -40,7 +41,7 @@ type ActorCou = Map ActorRef AbstractCount
 
 -- The instantiated message type
 type MsgPayload = ActorVlu
-type MsgContext = ActorPC 
+type MsgContext = (ActorPC, Map SymVar AbstractCount)
 type Msg = Message MsgPayload MsgContext
 
 

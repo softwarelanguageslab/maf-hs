@@ -74,10 +74,11 @@ library
       FunctionalDependencies
       RecordWildCards
       LambdaCase
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wno-missing-export-lists -Wno-x-partial -Wmissing-home-modules -Wpartial-fields -O3 -fspecialise -fexpose-all-unfoldings -flate-dmd-anal -Wredundant-constraints -Werror -threaded -fprint-potential-instances
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wno-missing-export-lists -Wno-x-partial -Wmissing-home-modules -Wpartial-fields -O0 -threaded -fspecialise -fexpose-all-unfoldings -flate-dmd-anal -Wredundant-constraints -Werror -threaded -fprint-potential-instances
   build-depends:
       aeson
     , base >=4.7 && <5
+    , clock
     , concurrency
     , concurrent-extra
     , containers
@@ -132,7 +133,7 @@ executable simpleactor-exe
       FunctionalDependencies
       RecordWildCards
       LambdaCase
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wno-missing-export-lists -Wno-x-partial -Wmissing-home-modules -Wpartial-fields -O3 -fspecialise -fexpose-all-unfoldings -flate-dmd-anal -Wredundant-constraints -Werror -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wno-missing-export-lists -Wno-x-partial -Wmissing-home-modules -Wpartial-fields -O0 -threaded -fspecialise -fexpose-all-unfoldings -flate-dmd-anal -Wredundant-constraints -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Glob
     , aeson
@@ -183,10 +184,11 @@ test-suite simpleactor-tests
       FunctionalDependencies
       RecordWildCards
       LambdaCase
-  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wno-missing-export-lists -Wno-x-partial -Wmissing-home-modules -Wpartial-fields -O3 -fspecialise -fexpose-all-unfoldings -flate-dmd-anal -Wredundant-constraints -Werror -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wno-missing-export-lists -Wno-x-partial -Wmissing-home-modules -Wpartial-fields -O0 -threaded -fspecialise -fexpose-all-unfoldings -flate-dmd-anal -Wredundant-constraints -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
     , base >=4.7 && <5
+    , clock
     , concurrent-extra
     , deepseq
     , directory
