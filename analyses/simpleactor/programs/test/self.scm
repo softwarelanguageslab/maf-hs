@@ -5,13 +5,13 @@
         (receive 
           ((sender (send^ sender 'reply)
                    (a))))))
-   (b (lambda (a)
+   (b (lambda ()
         (parametrize 
           ((self (self^)))
-            (receive
-              (('start (send^ a (dyn self)) (b a))
-               ('reply (trace 'done) (b a)))))))
+                (receive
+                  (((cons 'start a) (send^ a (dyn self)) (b))
+                   ('reply (trace 'done) (b)))))))
    (a-actor (spawn^ (a)))
-   (b-actor (spawn^ (b a-actor))))
+   (b-actor (spawn^ (b))))
 
-  (send^ b-actor 'start))
+  (send^ b-actor (cons 'start a-actor)))
