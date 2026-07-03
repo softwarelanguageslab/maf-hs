@@ -337,6 +337,7 @@ actorPrimitives =  Prm @v <$> Map.fromList [
    ("print-env", aprim0 $ const $ (liftIO . print =<< getEnv) $> nil),
    ("string=?", aprim2 $ const $ (\_ _ -> return boolTop)),
    ("fresh-string", aprim0 $ (\e -> fresh e)),
+   ("sleep", aprim1 $ const $ const $ return nil),
    -- TODO: move this primitive to somewhere else, since it belongs to the symbolic domain
    -- ("fresh", aprim1 $ \v e -> do { adr <- alloc (Ide "fresh" (spanOf e)) ;  writeVar adr (var adr v) ; return $ var adr v }),
    ("print", aprim1 $ const $ const $ return nil) ]
