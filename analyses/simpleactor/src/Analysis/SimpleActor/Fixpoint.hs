@@ -101,12 +101,8 @@ import Domain.Scheme.Store (SchemeStore)
 import Control.Monad.Identity
 import Control.Monad.Join (MonadJoinable(..), MonadBottom (mbottom))
 import Data.Aeson (ToJSON)
-import qualified Data.Aeson as JSON
-import qualified RIO.ByteString.Lazy as ByteString
 import Control.DeepSeq
 import System.Clock
-import qualified RIO as Debug
-import qualified RIO.Text as T
 
 ------------------------------------------------------------
 -- Shorthands
@@ -525,7 +521,6 @@ addMessageCtx payload = do
         let restrictedPC =  SCV.simplifyPC $ SCV.restrictPC reachableVariables pc
         count' <- getCounts
         let restrictedCounts = Map.restrictKeys count' reachableVariables 
-        Debug.traceIO $ T.pack $ "restricted counts " ++ show restrictedCounts
         return $ message payload (restrictedPC, restrictedCounts)
     where lookupSchemeAdr :: forall m . (SchemeStoreM Exp ActorVlu m, MonadJoinable m) => Store.SchemeAdr Exp K -> m (Set ActorVlu)
           lookupSchemeAdr = \case 
@@ -711,7 +706,7 @@ instance NFData LoggingEvent
 instance ToJSON LoggingEvent
 
 logEvent :: MonadIO m => LoggingEvent -> m ()
-logEvent = liftIO . ByteString.putStrLn . JSON.encode
+logEvent = const $ return () -- liftIO . ByteString.putStrLn . JSON.encode
 
 ------------------------------------------------------------
 -- Fixpoints
